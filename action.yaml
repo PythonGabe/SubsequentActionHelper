@@ -11,7 +11,7 @@ inputs:
   action-ref:
     description: "The action ref to checkout"
     required: true
-  private-repo-github-actions-token:
+  private-repo-token:
     description: "Github Actions Token"
     required: true
 
@@ -58,14 +58,20 @@ runs:
 
         if [[ -d "${{ inputs.action-repo-path }}" ]]; then
           # check if the value in action-repo-path/action-ref.yaml is the same as the action_ref
-          FOUND_ACTION_REPO_REF=$(cat ${{ inputs.action-repo-path }}/action-ref.yaml)
-          if [[ $FOUND_ACTION_REPO_REF = "$INPUT_REF" ]]; then
-            echo "The action repo is already checked out and the ref is the same as the input ref"
-            DO_CHECKOUT=false
-            GET_REPO=false
-          else
-            # remove the directory for checking out or copying the repo
+          # check if the file exists
+          if [[ ! -f ${{ inputs.action-repo-path }}/action-ref.txt ]]; then
+            echo "The action-ref.txt file does not exist"
             rm -rf ${{ inputs.action-repo-path }}
+          else 
+            FOUND_ACTION_REPO_REF=$(cat ${{ inputs.action-repo-path }}/action-ref.txt)
+            if [[ $FOUND_ACTION_REPO_REF = "$INPUT_REF" ]]; then
+              echo "The action repo is already checked out and the ref is the same as the input ref"
+              DO_CHECKOUT=false
+              GET_REPO=false
+            else
+              # remove the directory for checking out or copying the repo
+              rm -rf ${{ inputs.action-repo-path }}
+            fi
           fi
         fi
 
@@ -87,7 +93,7 @@ runs:
           rm -rf $TMP_PATH
         else
           # check if github token is set
-          if [[ -n "${{ inputs.private-repo-github-actions-token }}" ]]; then
+          if [[ -n "${{ inputs.private-repo-token }}" ]]; then
             echo "Github token is set"
             GITHUB_TOKEN_SET='true'
           fi
@@ -115,7 +121,7 @@ runs:
         repository: ${{ steps.setup.outputs.INPUT_REPOSITORY }}
         ref: ${{ steps.setup.outputs.INPUT_REF }}
         path: ${{ inputs.action-repo-path }}
-        token: ${{ inputs.private-repo-github-actions-token }}
+        token: ${{ inputs.private-repo-token }}
 
     - name: Save the ref in the action-ref.yaml file
       run: |
