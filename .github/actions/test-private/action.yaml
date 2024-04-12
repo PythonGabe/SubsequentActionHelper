@@ -5,6 +5,14 @@ inputs:
   actions_token:
     description: "Github Actions Token - for our private actions repo"
     required: true
+  action_repository:
+    description: "Internal use only - do not set"
+    required: true
+    default: "${{ github.action_repository }}"
+  action_ref:
+    description: "Internal use only - do not set"
+    required: true
+    default: "${{ github.action_ref }}"
 
 runs:
   using: "composite"
@@ -20,10 +28,10 @@ runs:
       - name: Run - Action - Same Repo
         uses: ./.github/actions/self-test # This would be "PythonGabe/SubsequentActionHelper@VERSION" inside your action
         with:
-          repository: "${{ github.action_repository }}"
+          repository: "${{ inputs.action_repository }}"
           action-repo-path: ./custom/actions # Since this can't be a variable for the 'uses' field I like to not set it as a variable.
-          action-ref: ${{ github.action_ref }}
-          private-repo-github-actions-token: "${{ inputs.actions_token }}"
+          action-ref: ${{ inputs.action_ref }}
+          private-repo-token: "${{ inputs.actions_token }}"
     
 
       - name: Running the test action - Same Repo # this is an example of how your action would be called in the same repo with the same ref
@@ -33,10 +41,10 @@ runs:
       - name: Run - Action - Being used in a Different Private Repo
         uses: ./.github/actions/self-test # This would be "PythonGabe/SubsequentActionHelper@VERSION" inside your action
         with:
-          repository: "PythonGabe/SubsequentActionHelper-Test-Private-Repo" # This would be ${{ github.action_repository }}' in your action but for testing purposes we are using a different repo
+          repository: "PythonGabe/SubsequentActionHelper-Test-Private-Repo" # This would be ${{ inputs.action_repository }}' in your action but for testing purposes we are using a different repo
           action-repo-path: ./private_repo/actions
-          action-ref: "main" # This would be ${{ github.action_ref }}' in your action but for testing purposes we are using a different ref
-          private-repo-github-actions-token: "${{ inputs.actions_token }}"
+          action-ref: "main" # This would be ${{ inputs.action_ref }}' in your action but for testing purposes we are using a different ref
+          private-repo-token: "${{ inputs.actions_token }}"
 
       - name: Setup
         run: |

@@ -1,5 +1,15 @@
 name: Example Test Action - Public Repo
 
+inputs:
+  action_repository:
+    description: "Internal use only - do not set"
+    required: true
+    default: "${{ github.action_repository }}"
+  action_ref:
+    description: "Internal use only - do not set"
+    required: true
+    default: "${{ github.action_ref }}"
+
 runs:
   using: "composite"
   steps:
@@ -14,9 +24,9 @@ runs:
       - name: Run - Action - Same Repo
         uses: ./.github/actions/self-test # This would be "PythonGabe/SubsequentActionHelper@VERSION" inside your action
         with:
-          repository: "${{ github.env.action_repository }}"
+          repository: "${{ inputs.action_repository }}"
           action-repo-path: ./custom/actions # Since this can't be a variable for the 'uses' field I like to not set it as a variable.
-          action-ref: ${{ github.env.action_ref }}
+          action-ref: ${{ inputs.action_ref }}
         
       - name: Running the test action - Same Repo # this is an example of how your action would be called in the same repo with the same ref
         uses: ./custom/actions/test-action
@@ -25,9 +35,9 @@ runs:
       - name: Run - Action - Being used in a Different Public Repo
         uses: ./.github/actions/self-test # This would be "PythonGabe/SubsequentActionHelper@VERSION" inside your action
         with:
-          repository: "PythonGabe/SubsequentActionHelper-Test-Public-Repo" # This would be ${{ github.action_repository }}' in your action but for testing purposes we are using a different repo
+          repository: "PythonGabe/SubsequentActionHelper-Test-Public-Repo" # This would be ${{ inputs.action_repository }}' in your action but for testing purposes we are using a different repo
           action-repo-path: ./public_repo/actions
-          action-ref: "main" # This would be ${{ github.action_ref }}' in your action but for testing purposes we are using a different ref
+          action-ref: "main" # This would be ${{ inputs.action_ref }}' in your action but for testing purposes we are using a different ref
 
       - name: Running the test action - Different Public Repo # this is an example of how your action would be called in a different public repo with the same ref
         uses: ./public_repo/actions/test
