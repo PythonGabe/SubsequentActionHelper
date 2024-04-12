@@ -1,0 +1,49 @@
+name: Example Test Action - Private Repo
+
+
+inputs:
+  actions_token:
+    description: "Github Actions Token - for our private actions repo"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+      - name: Setup
+        run: |
+          # copy the action.yaml file to the .github/actions folder so we can run it
+          mkdir -p ./.github/actions/self-test
+          cp action.yaml ./.github/actions/self-test
+        shell: bash
+
+      # ----------------- Same Repo IE Tests for your actions -----------------
+      - name: Run - Action - Same Repo
+        uses: ./.github/actions/self-test # This would be "PythonGabe/SubsequentActionHelper@VERSION" inside your action
+        with:
+          repository: "${{ github.action_repository }}"
+          action-repo-path: ./custom/actions # Since this can't be a variable for the 'uses' field I like to not set it as a variable.
+          action-ref: ${{ github.action_ref }}
+          private-repo-github-actions-token: "${{ inputs.actions_token }}"
+    
+
+      - name: Running the test action - Same Repo # this is an example of how your action would be called in the same repo with the same ref
+        uses: ./custom/actions/test-action
+
+      # ----------------- Different Private Repo -----------------
+      - name: Run - Action - Being used in a Different Private Repo
+        uses: ./.github/actions/self-test # This would be "PythonGabe/SubsequentActionHelper@VERSION" inside your action
+        with:
+          repository: "PythonGabe/SubsequentActionHelper-Test-Private-Repo" # This would be ${{ github.action_repository }}' in your action but for testing purposes we are using a different repo
+          action-repo-path: ./private_repo/actions
+          action-ref: "main" # This would be ${{ github.action_ref }}' in your action but for testing purposes we are using a different ref
+          private-repo-github-actions-token: "${{ inputs.actions_token }}"
+
+      - name: Setup
+        run: |
+          echo "Listing out the files"
+          ls -la ./private_repo/actions
+          ls -la ./private_repo/actions/test
+        shell: bash
+
+      - name: Running the test action - Different Private Repo
+        uses: ./private_repo/actions/test

@@ -1,0 +1,10 @@
+name: Test Action
+
+runs:
+  using: "composite"
+  steps:
+    - name: Successfully Pulled and Running - Same Repo
+      run: |
+        echo "Successfully Pulled and Running - Same Repo" 
+      shell: bash
+        

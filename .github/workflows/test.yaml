@@ -1,0 +1,51 @@
+name: Test Action
+
+on:
+  push:
+    branches:
+      - '**'
+
+concurrency:
+  # Cancel in-progress runs on same branch
+  group: ${{ github.ref }}-push
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    name: Test Action - Public Repo
+    permissions: write-all
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: List out the files
+        run: |
+          ls -la ./.github/actions
+        shell: bash
+
+        # This is how you can call your public actions
+      - name: Test the action - Public Repo
+        uses: ./.github/actions/test-public
+
+  
+  test-private:
+    runs-on: ubuntu-latest
+    name: Test Action - Private Repo
+    permissions: write-all
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      
+      - name: List out the files
+        run: |
+          ls -la ./.github/actions
+        shell: bash
+
+        # This is how you can call your private actions
+        # You will need to setup a Token and input on all your actions to take the token
+      - name: Test the action - Private Repo
+        uses: ./.github/actions/test-private
+        with:
+          actions_token: ${{ secrets.ACTIONS_REPO_TOKEN }}

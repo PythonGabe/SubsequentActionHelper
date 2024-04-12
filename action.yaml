@@ -8,7 +8,10 @@ inputs:
   action-repo-path:
     description: "Path to the action repo"
     required: true
-  private_repo_github_actions_token:
+  action-ref:
+    description: "The action ref to checkout"
+    required: true
+  private-repo-github-actions-token:
     description: "Github Actions Token"
     required: true
 
@@ -16,73 +19,105 @@ runs:
   using: "composite"
   steps:
     - name: Checkout action repo
-      id: check-if-is-action-repo
+      id: setup
       run: |
-        echo "Checking if this is the action repo"
-        IS_ACTION_REPO="${{ github.repository == inputs.repository && 'true' || 'false' }}"
-        GITHUB_TOKEN_SET=true
-        GET_REPO=true
-        DO_CHECKOUT=true
 
-        if [[ $IS_ACTION_REPO == 'true' ]]; then
-          echo "This is the action repo"
-          DO_CHECKOUT=false
-          ACTION_REPO_REF=${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.head_ref }}
+        IS_ACTION_REPO='false'
+        DO_CHECKOUT='false'
+        GET_REPO='false'
+        GITHUB_TOKEN_SET='false'
+
+        if [[ ! ${{ inputs.action-repo-path }} =~ ^\./ ]]; then
+          echo "The action-repo-path must start with ./"
+          exit 1
+        fi
+        # check that the input path starts with ./
+        # if the repository is empty then it means this is running in the same repository ad github.action_repository is not available when running in the same repository
+        INPUT_REPOSITORY=${{ inputs.repository }}
+        INPUT_REF=${{ inputs.action-ref }}
+        
+        if [[ -z "$INPUT_REPOSITORY" ]]; then
+          echo "Repository is empty"
+          echo "This is the same repository"
+          IS_ACTION_REPO='true'
+          GET_REPO='true'
+          INPUT_REPOSITORY="${{ github.repository }}"
+          INPUT_REF="${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.head_ref }}"
+        elif [[ "$INPUT_REPOSITORY" = "${{ github.repository }}" ]]; then
+          echo "Repository is not empty"
+          echo "This is the same repository"
+          IS_ACTION_REPO='true'
+          GET_REPO='true'
         else
-          echo "This is not the action repo"
-          GET_REPO=false
-          ACTION_REPO_REF=${{ github.action_ref }}
+          echo "Repository is not empty"
+          echo "This is not the same repository"
+          DO_CHECKOUT=true
         fi
 
-        if [[ -d "${{ inputs.repository-action-path }}" ]]; then
-          # check if the value in repository-action-path/action-ref.yaml is the same as the action_ref
-          ACTION_REPO_REF=$(cat ${{ inputs.repository-action-path }}/action-ref.yaml)
-          if [[ $ACTION_REPO_REF == ${{ github.action_ref }} ]]; then
+        COPY_PATH=$(echo ${{ inputs.action-repo-path }} | sed 's/^\.\///')
+
+        if [[ -d "${{ inputs.action-repo-path }}" ]]; then
+          # check if the value in action-repo-path/action-ref.yaml is the same as the action_ref
+          FOUND_ACTION_REPO_REF=$(cat ${{ inputs.action-repo-path }}/action-ref.yaml)
+          if [[ $FOUND_ACTION_REPO_REF = "$INPUT_REF" ]]; then
+            echo "The action repo is already checked out and the ref is the same as the input ref"
             DO_CHECKOUT=false
             GET_REPO=false
           else
-            # remove the directory and checkout the new ref
-            rm -rf ${{ inputs.repository-action-path }}
+            # remove the directory for checking out or copying the repo
+            rm -rf ${{ inputs.action-repo-path }}
           fi
         fi
 
-        if [[ $GET_REPO == 'true' ]]; then
+        mkdir -p ${{ inputs.action-repo-path }}
+
+        if [[ $GET_REPO = 'true' ]]; then
           echo "Getting the repository"
           # copy the current repo to the action repo path
-          cp -r . ${{ inputs.repository-action-path }}
+          # can't copy into itself
+
+          TMP_PATH="$(dirname $GITHUB_WORKSPACE)/tmp-action-repo"
+          echo "Creating the action repo path tmp directory at $TMP_PATH"
+          mkdir -p $TMP_PATH
+          echo "Copying the current repo to the tmp directory at $TMP_PATH"
+          cp -r ./ $TMP_PATH/
+          echo "Copying the action repo from the $TMP_PATH to the action repo path at $GITHUB_WORKSPACE/$COPY_PATH"
+          cp -r $TMP_PATH/* $GITHUB_WORKSPACE/$COPY_PATH
+          echo "Removing the tmp directory at $TMP_PATH"
+          rm -rf $TMP_PATH
         else
           # check if github token is set
-          if [[ -z "${{ inputs.github_actions_token }}" ]]; then
-            echo "Github Actions Token is not set"
-            GITHUB_TOKEN_SET=false
+          if [[ -n "${{ inputs.private-repo-github-actions-token }}" ]]; then
+            echo "Github token is set"
+            GITHUB_TOKEN_SET='true'
           fi
         fi
 
-        echo "ACTION_REPO_REF=$ACTION_REPO_REF" >> $GITHUB_OUTPUT
         echo "IS_ACTION_REPO=$IS_ACTION_REPO" >> $GITHUB_OUTPUT
         echo "DO_CHECKOUT=$DO_CHECKOUT" >> $GITHUB_OUTPUT
+        echo "GITHUB_TOKEN_SET=$GITHUB_TOKEN_SET" >> $GITHUB_OUTPUT
+        echo "INPUT_REPOSITORY=$INPUT_REPOSITORY" >> $GITHUB_OUTPUT
+        echo "INPUT_REF=$INPUT_REF" >> $GITHUB_OUTPUT
       shell: bash
     
     - name: Checkout action repo without token
-      if: ${{ steps.check-if-is-action-repo.outputs.DO_CHECKOUT == 'true' && steps.check-if-is-action-repo.outputs.GITHUB_TOKEN_SET == 'false' }}
+      if: ${{ steps.setup.outputs.DO_CHECKOUT == 'true' && steps.setup.outputs.GITHUB_TOKEN_SET == 'false' }}
       uses: actions/checkout@v4
       with:
-        repository: ${{ inputs.repository }}
-        ref: ${{ github.action_ref }}
-        path: ${{ inputs.repository-action-path }}
-        ACTIONS_REPO_REF: ${{ steps.check-if-is-action-repo.outputs.ACTION_REPO_REF }}
+        repository: ${{ steps.setup.outputs.INPUT_REPOSITORY }}
+        ref: ${{ steps.setup.outputs.INPUT_REF }}
+        path: ${{ inputs.action-repo-path }}
     
     - name: Checkout action repo with token
-      if: ${{ steps.check-if-is-action-repo.outputs.DO_CHECKOUT == 'true' && steps.check-if-is-action-repo.outputs.GITHUB_TOKEN_SET == 'true' }}
+      if: ${{ steps.setup.outputs.DO_CHECKOUT == 'true' && steps.setup.outputs.GITHUB_TOKEN_SET == 'true' }}
       uses: actions/checkout@v4
       with:
-        repository: ${{ inputs.repository }}
-        ref: ${{ github.action_ref }}
-        path: ${{ inputs.repository-action-path }}
-        ACTIONS_REPO_REF: ${{ steps.check-if-is-action-repo.outputs.ACTION_REPO_REF }}
-        token: ${{ inputs.github_actions_token }}
+        repository: ${{ steps.setup.outputs.INPUT_REPOSITORY }}
+        ref: ${{ steps.setup.outputs.INPUT_REF }}
+        path: ${{ inputs.action-repo-path }}
+        token: ${{ inputs.private-repo-github-actions-token }}
 
     - name: Save the ref in the action-ref.yaml file
       run: |
-        echo "${{ github.action_ref }}" > ${{ inputs.repository-action-path }}/action-ref.txt
+        echo "${{ steps.setup.outputs.INPUT_REF }}" > ${{ inputs.action-repo-path }}/action-ref.txt
       shell: bash
